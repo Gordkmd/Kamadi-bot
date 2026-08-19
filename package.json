@@ -2,12 +2,12 @@
   "name": "kamadi-bot",
   "version": "1.0.0",
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.15",
-    "express": "^4.19.2",
-    "qrcode": "^1.5.4",
-    "pino": "^9.3.2",
-    "fs-extra": "^11.2.0"
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.8",
+    "express": "^4.19.2"
   }
 }
