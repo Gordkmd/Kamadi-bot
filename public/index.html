@@ -1,0 +1,44 @@
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>KAMADI-BOT Panel</title>
+      <style>
+        body { font-family: Arial; background:#111; color:#fff; text-align:center; padding:50px; }
+        button { padding:15px 30px; font-size:18px; background:#25D366; border:none; color:#fff; border-radius:10px; cursor:pointer; }
+        #qr img { margin-top:20px; width:300px; }
+        #sessionId { color:#25D366; font-size:24px; font-weight:bold; }
+      </style>
+    </head>
+    <body>
+      <h1>👑 KAMADI-BOT PANEL 👑</h1>
+      <button onclick="createSession()">Generate Session</button>
+      <div id="qr"></div>
+      <h2 id="sessionId"></h2>
+      <p id="status"></p>
+    <script>
+    let sessionId = null;
+    let checkInterval = null;
+    async function createSession() {
+      document.getElementById('status').innerText = 'Generating...';
+      const res = await fetch('/create-session', { method: 'POST' });
+      const data = await res.json();
+      sessionId = data.sessionId;
+      document.getElementById('sessionId').innerText = 'Your Session ID: ' + sessionId;
+      checkStatus();
+      checkInterval = setInterval(checkStatus, 3000);
+    }
+    async function checkStatus() {
+      if (!sessionId) return;
+      const res = await fetch('/session/' + sessionId);
+      const data = await res.json();
+      document.getElementById('status').innerText = 'Status: ' + data.status;
+      if (data.qr) {
+        document.getElementById('qr').innerHTML = `<img src="${data.qr}"/> <p>Scan with WhatsApp > Linked Devices</p>`;
+      } else {
+        document.getElementById('qr').innerHTML = '<h3>✅ KAMADI-BOT Connected!</h3>';
+        clearInterval(checkInterval);
+      }
+    }
+    </script>
+    </body>
+    </html>
