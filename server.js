@@ -1,63 +1,44 @@
 const express = require('express');
 const path = require('path');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
-const { Boom } = require('@hapi/boom');
+const fs = require('fs');
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, delay } = require('@whiskeysockets/baileys');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static files
 app.use(express.static('public'));
-app.use(express.json());
+if (!fs.existsSync('./session')) fs.mkdirSync('./session');
 
-// Homepage
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Generate session endpoint
-app.get('/generate', async (req, res) => {
+app.get('/code', async (req, res) => {
+    const number = req.query.number;
+    if(!number) return res.json({error: 'Enter number'});
+    
     try {
         const { state, saveCreds } = await useMultiFileAuthState('./session');
+        const { version } = await fetchLatestBaileysVersion();
         
         const sock = makeWASocket({
+            version,
             auth: state,
             printQRInTerminal: false,
             logger: require('pino')({ level: 'silent' })
         });
 
         sock.ev.on('creds.update', saveCreds);
-
-        sock.ev.on('connection.update', async (update) => {
-            const { connection, lastDisconnect, qr } = update;
-            
-            if (qr) {
-                return res.json({ qr: qr });
-            }
-
-            if (connection === 'open') {
-                return res.json({ success: true, message: 'Connected to WhatsApp!' });
-            }
-
-            if (connection === 'close') {
-                const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-                console.log('Connection closed. Reconnect:', shouldReconnect);
-            }
-        });
-
+        
+        await delay(1000); // wait for socket to connect
+        
+        const code = await sock.requestPairingCode(number);
+        console.log(`🔥 PAIRING CODE: ${code}`);
+        
+        await sock.logout(); // close socket
+        
+        return res.json({code: code.match(/.{1,3}/g).join('-')});
+        
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: err.message });
+        return res.json({error: 'Failed. Refresh and try again'});
     }
 });
 
-// Health check for Render
-app.get('/health', (req, res) => {
-    res.status(200).send('OK');
-});
-
-// THIS LINE IS CRITICAL FOR RENDER
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Kamadi Bot is running on port ${PORT}`);
-    console.log(`🔗 Open: https://kamadi-bot.onrender.com`);
-});
+app.listen(PORT, '0.0.0.0', () => console.log(`✅ Running on ${PORT}`));
