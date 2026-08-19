@@ -1,54 +1,63 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
-const { Boom } = require('@hapi/boom');
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { Boom } = require('@hapi/boom');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Serve static files
 app.use(express.static('public'));
+app.use(express.json());
 
-// ====== PUT YOUR NUMBER HERE ======
-const phoneNumber = "2347057558443" // CHANGE THIS to your WhatsApp number with country code. Ex: 2348012345678. No + and no spaces
-// ===================================
-
-const SESSION_FOLDER = path.join(__dirname, 'sessions');
-
+// Homepage
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState(SESSION_FOLDER);
-    const { version } = await fetchLatestBaileysVersion();
+// Generate session endpoint
+app.get('/generate', async (req, res) => {
+    try {
+        const { state, saveCreds } = await useMultiFileAuthState('./session');
+        
+        const sock = makeWASocket({
+            auth: state,
+            printQRInTerminal: false,
+            logger: require('pino')({ level: 'silent' })
+        });
 
-    const sock = makeWASocket({
-        version,
-        auth: state,
-        printQRInTerminal: false, // we use pairing code instead
-        browser: ['KAMADI-BOT', 'Chrome', '1.0.0']
-    });
+        sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('creds.update', saveCreds);
-
-    // Ask for pairing code if not logged in
-    if (!state.creds.registered) {
-        setTimeout(async () => {
-            if (phoneNumber === "234XXXXXXXXXX") {
-                console.log("⚠️ Please change phoneNumber in server.js first!")
-                return;
+        sock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect, qr } = update;
+            
+            if (qr) {
+                return res.json({ qr: qr });
             }
-            try {
-                const code = await sock.requestPairingCode(phoneNumber);
-                console.log(`\n🔥 YOUR PAIRING CODE: ${code} 🔥\n`);
-                console.log(`Go to WhatsApp > Settings > Linked Devices > Link with phone number\n`);
-            } catch (err) {
-                console.log("Error getting pairing code:", err);
+
+            if (connection === 'open') {
+                return res.json({ success: true, message: 'Connected to WhatsApp!' });
             }
-        }, 3000);
+
+            if (connection === 'close') {
+                const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
+                console.log('Connection closed. Reconnect:', shouldReconnect);
+            }
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
     }
+});
 
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
-        if (connection === 'open')
+// Health check for Render
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
+// THIS LINE IS CRITICAL FOR RENDER
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Kamadi Bot is running on port ${PORT}`);
+    console.log(`🔗 Open: https://kamadi-bot.onrender.com`);
+});
