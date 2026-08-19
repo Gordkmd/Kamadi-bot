@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static('public'));
 
 // ====== PUT YOUR NUMBER HERE ======
-const phoneNumber = "234XXXXXXXXXX" // CHANGE THIS to your WhatsApp number with country code. Ex: 2348012345678. No + and no spaces
+const phoneNumber = "2347057558443" // CHANGE THIS to your WhatsApp number with country code. Ex: 2348012345678. No + and no spaces
 // ===================================
 
 const SESSION_FOLDER = path.join(__dirname, 'sessions');
